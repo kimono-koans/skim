@@ -142,7 +142,7 @@ impl Matcher {
                         let par_iter = items
                             .par_iter()
                             .enumerate()
-                            .chunks(4096)
+                            .chunks(16384)
                             .take_any_while(|vec| {
                                 if stopped_ref.load(Ordering::Relaxed) {
                                     return false;
