@@ -4,7 +4,7 @@ use crate::global::mark_new_run;
 ///! After reading in a line, reader will save an item into the pool(items)
 use crate::options::SkimOptions;
 use crate::{SkimItem, SkimItemReceiver};
-use crossbeam_channel::{unbounded, Select, Sender};
+use crossbeam_channel::{unbounded, Receiver, Select, Sender};
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -29,8 +29,12 @@ pub trait CommandCollector {
     /// Internally, the command collector may start several threads(components), the collector
     /// should add `1` on every thread creation and sub `1` on thread termination. reader would use
     /// this information to determine whether the collector had stopped or not.
-    fn invoke(&mut self, cmd: &str, components_to_stop: Arc<AtomicUsize>)
-        -> (SkimItemReceiver, Option<JoinHandle<()>>);
+    fn invoke(
+        &mut self,
+        cmd: &str,
+        components_to_stop: Arc<AtomicUsize>,
+        opt_tx_interrupt: Option<Sender<i32>>,
+    ) -> (SkimItemReceiver, Option<JoinHandle<()>>);
 }
 
 pub struct ReaderControl {
@@ -120,17 +124,21 @@ impl Reader {
     pub fn run(&mut self, cmd: &str) -> ReaderControl {
         mark_new_run(cmd);
 
+        let (tx_interrupt, rx_interrupt) = unbounded::<i32>();
         let components_to_stop: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
         let items_strong = Arc::new(RwLock::new(Vec::with_capacity(ITEMS_INITIAL_CAPACITY)));
         let items_weak = Arc::downgrade(&items_strong);
 
         let (rx_item, opt_ingest_handle) = self.rx_item.take().map(|rx| (rx, None)).unwrap_or_else(|| {
             let components_to_stop_clone = components_to_stop.clone();
-            self.cmd_collector.borrow_mut().invoke(cmd, components_to_stop_clone)
+
+            self.cmd_collector
+                .borrow_mut()
+                .invoke(cmd, components_to_stop_clone, Some(tx_interrupt.clone()))
         });
 
         let components_to_stop_clone = components_to_stop.clone();
-        let (tx_interrupt, thread_reader) = collect_item(components_to_stop_clone, rx_item, items_weak);
+        let thread_reader = collect_item(components_to_stop_clone, rx_item, items_weak, rx_interrupt);
 
         ReaderControl {
             tx_interrupt,
@@ -146,9 +154,8 @@ fn collect_item(
     components_to_stop: Arc<AtomicUsize>,
     rx_item: SkimItemReceiver,
     items_weak: Weak<RwLock<Vec<Arc<dyn SkimItem>>>>,
-) -> (Sender<i32>, JoinHandle<()>) {
-    let (tx_interrupt, rx_interrupt) = unbounded();
-
+    rx_interrupt: Receiver<i32>,
+) -> JoinHandle<()> {
     let started = Arc::new(AtomicBool::new(false));
     let started_clone = started.clone();
     let thread_reader = thread::spawn(move || {
@@ -163,10 +170,6 @@ fn collect_item(
 
         if let Some(items_strong) = Weak::upgrade(&items_weak) {
             loop {
-                if empty_count >= 10 {
-                    break;
-                }
-
                 match sel.ready() {
                     i if i == item_channel && !rx_item.is_empty() => {
                         let Ok(mut locked) = items_strong.write() else { continue };
@@ -185,11 +188,11 @@ fn collect_item(
                         drop(locked);
                         sleep(SLEEP_FAST);
                     }
+                    i if i == interrupt_channel => break,
                     i if i == item_channel => {
                         empty_count += 1;
                         continue;
                     }
-                    i if i == interrupt_channel => break,
                     _ => unreachable!(),
                 }
             }
@@ -208,5 +211,5 @@ fn collect_item(
         // busy waiting for the thread to start. (components_to_stop is added)
     }
 
-    (tx_interrupt, thread_reader)
+    thread_reader
 }

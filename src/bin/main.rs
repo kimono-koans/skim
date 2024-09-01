@@ -321,7 +321,7 @@ fn real_main() -> Result<i32, std::io::Error> {
     // read from pipe or command
 
     let (rx_item, opt_ingest_handle) = if !std::io::stdin().is_terminal() {
-            let (rx_item, opt_ingest_handle) = cmd_collector.borrow().of_bufread(Box::new(BufReader::with_capacity(READ_BUFFER_CAPACITY, std::io::stdin())));
+            let (rx_item, opt_ingest_handle) = cmd_collector.borrow().of_bufread(Box::new(BufReader::with_capacity(READ_BUFFER_CAPACITY, std::io::stdin())), None);
             (Some(rx_item),  opt_ingest_handle)
         } else {
          (None, None)
@@ -554,7 +554,7 @@ pub fn filter(
 
     let stream_of_item = source.unwrap_or_else(|| {
         let cmd_collector = options.cmd_collector.clone();
-        let (stream_of_item, _ingest_handle) = cmd_collector.borrow_mut().invoke(cmd, components_to_stop);
+        let (stream_of_item, _ingest_handle) = cmd_collector.borrow_mut().invoke(cmd, components_to_stop, None);
         stream_of_item
     });
 

@@ -8,7 +8,7 @@ use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::thread::{self, JoinHandle};
 
-use crossbeam_channel::{bounded, unbounded, Receiver};
+use crossbeam_channel::{unbounded, Receiver, Sender};
 use regex::Regex;
 
 use crate::field::FieldRange;
@@ -21,7 +21,6 @@ use crate::{SkimItem, SkimItemReceiver, SkimItemSender};
 #[cfg(target_env = "gnu")]
 use crate::malloc_trim;
 
-const CMD_CHANNEL_SIZE: usize = 1_024;
 const DELIMITER_STR: &str = r"[\t\n ]+";
 
 pub enum CollectorInput {
@@ -143,23 +142,36 @@ impl SkimItemReader {
 }
 
 impl SkimItemReader {
-    pub fn of_bufread(&self, source: Box<dyn BufRead + Send>) -> (SkimItemReceiver, Option<JoinHandle<()>>) {
+    pub fn of_bufread(
+        &self,
+        source: Box<dyn BufRead + Send>,
+        opt_tx_interrupt: Option<Sender<i32>>,
+    ) -> (SkimItemReceiver, Option<JoinHandle<()>>) {
         if self.option.is_simple() {
-            self.raw_bufread(source)
+            self.raw_bufread(source, opt_tx_interrupt)
         } else {
-            let (rx_item, opt_ingest_handle) = self
-                .read_and_collect_from_command(Arc::new(AtomicUsize::new(0)), CollectorInput::Pipe(Box::new(source)));
+            let (rx_item, opt_ingest_handle) = self.read_and_collect_from_command(
+                Arc::new(AtomicUsize::new(0)),
+                CollectorInput::Pipe(Box::new(source)),
+                opt_tx_interrupt,
+            );
             (rx_item, opt_ingest_handle)
         }
     }
 
     /// helper: convert bufread into SkimItemReceiver
-    fn raw_bufread(&self, source: Box<dyn BufRead + Send>) -> (SkimItemReceiver, Option<JoinHandle<()>>) {
+    fn raw_bufread(
+        &self,
+        source: Box<dyn BufRead + Send>,
+        opt_tx_interrupt: Option<Sender<i32>>,
+    ) -> (SkimItemReceiver, Option<JoinHandle<()>>) {
         let (tx_item, rx_item): (SkimItemSender, SkimItemReceiver) = unbounded();
         let line_ending = self.option.line_ending;
 
         let ingest_handle = thread::spawn(move || {
             ingest_loop(source, line_ending, tx_item, SendRawOrBuild::Raw);
+
+            let _ = opt_tx_interrupt.map(|tx| tx.send(1));
 
             #[cfg(feature = "malloc_trim")]
             #[cfg(target_os = "linux")]
@@ -177,15 +189,15 @@ impl SkimItemReader {
         &self,
         components_to_stop: Arc<AtomicUsize>,
         input: CollectorInput,
+        opt_tx_interrupt: Option<Sender<i32>>,
     ) -> (Receiver<Arc<dyn SkimItem>>, Option<JoinHandle<()>>) {
-        let (tx_interrupt, rx_interrupt) = bounded(CMD_CHANNEL_SIZE);
         let (tx_item, rx_item): (SkimItemSender, SkimItemReceiver) = unbounded();
 
         match input {
             CollectorInput::Pipe(source) => {
                 let started = Arc::new(AtomicBool::new(false));
                 let started_clone = started.clone();
-                let tx_interrupt_clone = tx_interrupt.clone();
+                let opt_tx_interrupt_clone = opt_tx_interrupt.clone();
                 let option = self.option.clone();
                 let ingest_handle = thread::spawn(move || {
                     debug!("collector: command collector start");
@@ -202,7 +214,7 @@ impl SkimItemReader {
 
                     ingest_loop(source, option.line_ending, tx_item, SendRawOrBuild::Build(opts));
 
-                    let _ = tx_interrupt_clone.send(1); // ensure the waiting thread will exit
+                    let _ = opt_tx_interrupt_clone.map(|tx| tx.send(1)); // ensure the waiting thread will exit
                     components_to_stop.fetch_sub(1, Ordering::SeqCst);
                     debug!("collector: command collector stop");
                 });
@@ -226,7 +238,6 @@ impl SkimItemReader {
                     components_to_stop_clone.fetch_add(1, Ordering::SeqCst);
                     started_clone.store(true, Ordering::SeqCst); // notify parent that it is started
 
-                    let _ = rx_interrupt.recv(); // block waiting
                     if let Some(mut child) = command {
                         // clean up resources
                         let _ = child.kill();
@@ -265,8 +276,13 @@ impl CommandCollector for SkimItemReader {
         &mut self,
         cmd: &str,
         components_to_stop: Arc<AtomicUsize>,
+        opt_tx_interrupt: Option<Sender<i32>>,
     ) -> (SkimItemReceiver, Option<JoinHandle<()>>) {
-        self.read_and_collect_from_command(components_to_stop, CollectorInput::Command(cmd.to_string()))
+        self.read_and_collect_from_command(
+            components_to_stop,
+            CollectorInput::Command(cmd.to_string()),
+            opt_tx_interrupt,
+        )
     }
 }
 

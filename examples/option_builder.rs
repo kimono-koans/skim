@@ -13,7 +13,7 @@ pub fn main() {
     //==================================================
     // first run
     let input = "aaaaa\nbbbb\nccc";
-    let (items, opt_ingest_handle) = item_reader.of_bufread(Box::new(Cursor::new(input)));
+    let (items, opt_ingest_handle) = item_reader.of_bufread(Box::new(Cursor::new(input)), None);
     let selected_items = Skim::run_with(&options, Some(items))
         .map(|out| out.selected_items)
         .unwrap_or_else(Vec::new);
@@ -29,7 +29,7 @@ pub fn main() {
     //==================================================
     // second run
     let input = "11111\n22222\n333333333";
-    let (items, opt_ingest_handle) = item_reader.of_bufread(Box::new(Cursor::new(input)));
+    let (items, opt_ingest_handle) = item_reader.of_bufread(Box::new(Cursor::new(input)), None);
     let selected_items = Skim::run_with(&options, Some(items))
         .map(|out| out.selected_items)
         .unwrap_or_else(Vec::new);
