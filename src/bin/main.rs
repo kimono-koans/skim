@@ -554,7 +554,7 @@ pub fn filter(
 
     let stream_of_item = source.unwrap_or_else(|| {
         let cmd_collector = options.cmd_collector.clone();
-        let (stream_of_item, _control, _ingest_handle) = cmd_collector.borrow_mut().invoke(cmd, components_to_stop);
+        let (stream_of_item, _ingest_handle) = cmd_collector.borrow_mut().invoke(cmd, components_to_stop);
         stream_of_item
     });
 

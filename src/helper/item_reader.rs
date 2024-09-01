@@ -8,7 +8,7 @@ use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::thread::{self, JoinHandle};
 
-use crossbeam_channel::{bounded, unbounded, Receiver, Sender};
+use crossbeam_channel::{bounded, unbounded, Receiver};
 use regex::Regex;
 
 use crate::field::FieldRange;
@@ -147,7 +147,7 @@ impl SkimItemReader {
         if self.option.is_simple() {
             self.raw_bufread(source)
         } else {
-            let (rx_item, _tx_item, opt_ingest_handle) = self
+            let (rx_item, opt_ingest_handle) = self
                 .read_and_collect_from_command(Arc::new(AtomicUsize::new(0)), CollectorInput::Pipe(Box::new(source)));
             (rx_item, opt_ingest_handle)
         }
@@ -177,7 +177,7 @@ impl SkimItemReader {
         &self,
         components_to_stop: Arc<AtomicUsize>,
         input: CollectorInput,
-    ) -> (Receiver<Arc<dyn SkimItem>>, Sender<i32>, Option<JoinHandle<()>>) {
+    ) -> (Receiver<Arc<dyn SkimItem>>, Option<JoinHandle<()>>) {
         let (tx_interrupt, rx_interrupt) = bounded(CMD_CHANNEL_SIZE);
         let (tx_item, rx_item): (SkimItemSender, SkimItemReceiver) = unbounded();
 
@@ -211,7 +211,7 @@ impl SkimItemReader {
                     // busy waiting for the thread to start. (components_to_stop is added)
                 }
 
-                (rx_item, tx_interrupt, Some(ingest_handle))
+                (rx_item, Some(ingest_handle))
             }
             CollectorInput::Command(cmd) => {
                 let command = get_command_output(&cmd).expect("command not found").0;
@@ -254,7 +254,7 @@ impl SkimItemReader {
                     // busy waiting for the thread to start. (components_to_stop is added)
                 }
 
-                (rx_item, tx_interrupt, Some(ingest_handle))
+                (rx_item, Some(ingest_handle))
             }
         }
     }
@@ -265,7 +265,7 @@ impl CommandCollector for SkimItemReader {
         &mut self,
         cmd: &str,
         components_to_stop: Arc<AtomicUsize>,
-    ) -> (SkimItemReceiver, Sender<i32>, Option<JoinHandle<()>>) {
+    ) -> (SkimItemReceiver, Option<JoinHandle<()>>) {
         self.read_and_collect_from_command(components_to_stop, CollectorInput::Command(cmd.to_string()))
     }
 }

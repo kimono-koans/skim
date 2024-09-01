@@ -29,16 +29,12 @@ pub trait CommandCollector {
     /// Internally, the command collector may start several threads(components), the collector
     /// should add `1` on every thread creation and sub `1` on thread termination. reader would use
     /// this information to determine whether the collector had stopped or not.
-    fn invoke(
-        &mut self,
-        cmd: &str,
-        components_to_stop: Arc<AtomicUsize>,
-    ) -> (SkimItemReceiver, Sender<i32>, Option<JoinHandle<()>>);
+    fn invoke(&mut self, cmd: &str, components_to_stop: Arc<AtomicUsize>)
+        -> (SkimItemReceiver, Option<JoinHandle<()>>);
 }
 
 pub struct ReaderControl {
     tx_interrupt: Sender<i32>,
-    tx_interrupt_cmd: Option<Sender<i32>>,
     components_to_stop: Arc<AtomicUsize>,
     items: Arc<RwLock<Vec<Arc<dyn SkimItem>>>>,
     thread_reader: Option<JoinHandle<()>>,
@@ -59,7 +55,7 @@ impl ReaderControl {
             self.components_to_stop.load(Ordering::SeqCst)
         );
 
-        let _ = self.tx_interrupt_cmd.as_ref().map(|tx| tx.send(1));
+        let _ = self.tx_interrupt.send(1);
         let _ = self.tx_interrupt.send(1);
 
         while !self.all_stopped() {}
@@ -128,20 +124,16 @@ impl Reader {
         let items_strong = Arc::new(RwLock::new(Vec::with_capacity(ITEMS_INITIAL_CAPACITY)));
         let items_weak = Arc::downgrade(&items_strong);
 
-        let (rx_item, tx_interrupt_cmd, opt_ingest_handle) =
-            self.rx_item.take().map(|rx| (rx, None, None)).unwrap_or_else(|| {
-                let components_to_stop_clone = components_to_stop.clone();
-                let (rx_item, tx_interrupt_cmd, opt_ingest_handle) =
-                    self.cmd_collector.borrow_mut().invoke(cmd, components_to_stop_clone);
-                (rx_item, Some(tx_interrupt_cmd), opt_ingest_handle)
-            });
+        let (rx_item, opt_ingest_handle) = self.rx_item.take().map(|rx| (rx, None)).unwrap_or_else(|| {
+            let components_to_stop_clone = components_to_stop.clone();
+            self.cmd_collector.borrow_mut().invoke(cmd, components_to_stop_clone)
+        });
 
         let components_to_stop_clone = components_to_stop.clone();
         let (tx_interrupt, thread_reader) = collect_item(components_to_stop_clone, rx_item, items_weak);
 
         ReaderControl {
             tx_interrupt,
-            tx_interrupt_cmd,
             components_to_stop,
             items: items_strong,
             thread_reader: Some(thread_reader),
