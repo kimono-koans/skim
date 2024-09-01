@@ -174,31 +174,32 @@ fn collect_item(
             loop {
                 match sel.ready() {
                     i if i == interrupt_channel => break,
-                    i if i == item_channel && !rx_item.is_empty() => {
-                        let Ok(mut locked) = items_strong.write() else { continue };
+                    i if i == item_channel => {
+                        match rx_item.try_recv() {
+                            Ok(_) => {
+                                let Ok(mut locked) = items_strong.write() else { continue };
 
-                        locked.extend(rx_item.try_iter());
+                                locked.extend(rx_item.try_iter());
+                                drop(locked);
 
-                        // slow path
-                        if empty_count > 1 {
-                            // faster for slow path but not for fast path
-                            drop(locked);
-                            sleep(SLEEP_SLOW);
-                            continue;
+                                // slow path
+                                if empty_count > 1 {
+                                    // faster for slow path but not for fast path
+                                    sleep(SLEEP_SLOW);
+                                    continue;
+                                }
+
+                                // fast path
+                                sleep(SLEEP_FAST);
+                            }
+                            Err(TryRecvError::Disconnected) => break,
+                            Err(TryRecvError::Empty) => {
+                                sleep(SLEEP_SLOW);
+                                empty_count += 1;
+                                continue;
+                            }
                         }
-
-                        // fast path
-                        drop(locked);
-                        sleep(SLEEP_FAST);
                     }
-                    i if i == item_channel => match rx_item.try_recv() {
-                        Err(TryRecvError::Disconnected) => break,
-                        _ => {
-                            sleep(SLEEP_SLOW);
-                            empty_count += 1;
-                            continue;
-                        }
-                    },
                     _ => unreachable!(),
                 }
             }
