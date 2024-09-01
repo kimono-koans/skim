@@ -4,6 +4,7 @@ use crate::global::mark_new_run;
 ///! After reading in a line, reader will save an item into the pool(items)
 use crate::options::SkimOptions;
 use crate::{SkimItem, SkimItemReceiver};
+use crossbeam_channel::TryRecvError;
 use crossbeam_channel::{unbounded, Select, Sender};
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -171,11 +172,8 @@ fn collect_item(
 
         if let Some(items_strong) = Weak::upgrade(&items_weak) {
             loop {
-                if empty_count >= 10 {
-                    break;
-                }
-
                 match sel.ready() {
+                    i if i == interrupt_channel => break,
                     i if i == item_channel && !rx_item.is_empty() => {
                         let Ok(mut locked) = items_strong.write() else { continue };
 
@@ -193,11 +191,14 @@ fn collect_item(
                         drop(locked);
                         sleep(SLEEP_FAST);
                     }
-                    i if i == item_channel => {
-                        empty_count += 1;
-                        continue;
-                    }
-                    i if i == interrupt_channel => break,
+                    i if i == item_channel => match rx_item.try_recv() {
+                        Err(TryRecvError::Disconnected) => break,
+                        _ => {
+                            sleep(SLEEP_SLOW);
+                            empty_count += 1;
+                            continue;
+                        }
+                    },
                     _ => unreachable!(),
                 }
             }
