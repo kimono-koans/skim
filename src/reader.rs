@@ -196,6 +196,7 @@ fn collect_item(
                             continue;
                         }
                     },
+                    i if i == interrupt_channel && !rx_item.is_empty() => continue,
                     i if i == interrupt_channel => break,
                     _ => unreachable!(),
                 }
