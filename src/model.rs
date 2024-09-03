@@ -521,13 +521,13 @@ impl Model {
         let item: Arc<dyn SkimItem> = Arc::new(query);
         let downgraded = Arc::downgrade(&item);
         let new_len = self.item_pool.append(vec![item]);
-        let item_idx = (max(new_len, 1) - 1) as u32;
+        let item_idx = (max(new_len, 1) - 1) as usize;
 
         let matched_item = MatchedItem {
             item: downgraded,
-            rank: self.rank_builder.build_rank(0, 0, 0, item_len),
+            rank: self.rank_builder.build_rank(0, 0, 0, item_len, item_idx),
             matched_range: Some(MatchRange::ByteRange(0, 0)),
-            item_idx,
+            item_idx: item_idx as u32,
         };
 
         self.selection.act_select_matched(current_run_num(), matched_item);

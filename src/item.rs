@@ -40,14 +40,16 @@ impl RankBuilder {
     }
 
     /// score: the greater the better
-    pub fn build_rank(&self, score: i32, begin: usize, end: usize, length: usize) -> Rank {
+    pub fn build_rank(&self, score: i32, begin: usize, end: usize, length: usize, item_idx: usize) -> Rank {
         let mut rank = [0; 4];
         let begin = begin as i32;
         let end = end as i32;
         let length = length as i32;
+        let item_idx = item_idx as i32;
 
         for (index, criteria) in self.criterion.iter().take(4).enumerate() {
             let value = match criteria {
+                RankCriteria::Index => -item_idx,
                 RankCriteria::Score => -score,
                 RankCriteria::Begin => begin,
                 RankCriteria::End => end,
@@ -232,6 +234,7 @@ impl<'mutex, T: Sized> Deref for ItemPoolGuard<'mutex, T> {
 //------------------------------------------------------------------------------
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum RankCriteria {
+    Index,
     Score,
     Begin,
     End,

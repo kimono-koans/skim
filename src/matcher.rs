@@ -204,7 +204,7 @@ impl Matcher {
         matcher_engine: &dyn MatchEngine,
         item: &Arc<dyn SkimItem>,
     ) -> Option<MatchedItem> {
-        matcher_engine.match_item(item.as_ref()).map(|match_result| {
+        matcher_engine.match_item(item.as_ref(), index).map(|match_result| {
             matched.fetch_add(1, Ordering::Relaxed);
 
             MatchedItem {

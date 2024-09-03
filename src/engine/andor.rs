@@ -24,8 +24,8 @@ impl OrEngine {
 }
 
 impl MatchEngine for OrEngine {
-    fn match_item(&self, item: &dyn SkimItem) -> Option<MatchResult> {
-        self.engines.iter().find_map(|engine| engine.match_item(item))
+    fn match_item(&self, item: &dyn SkimItem, item_idx: usize) -> Option<MatchResult> {
+        self.engines.iter().find_map(|engine| engine.match_item(item, item_idx))
     }
 }
 
@@ -87,11 +87,11 @@ impl AndEngine {
 }
 
 impl MatchEngine for AndEngine {
-    fn match_item(&self, item: &dyn SkimItem) -> Option<MatchResult> {
+    fn match_item(&self, item: &dyn SkimItem, item_idx: usize) -> Option<MatchResult> {
         // mock
         let mut results = vec![];
         for engine in &self.engines {
-            let result = engine.match_item(item)?;
+            let result = engine.match_item(item, item_idx)?;
             results.push(result);
         }
 

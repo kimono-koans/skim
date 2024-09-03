@@ -74,7 +74,7 @@ impl ExactEngine {
 }
 
 impl MatchEngine for ExactEngine {
-    fn match_item(&self, item: &dyn SkimItem) -> Option<MatchResult> {
+    fn match_item(&self, item: &dyn SkimItem, item_idx: usize) -> Option<MatchResult> {
         let item_text = item.text();
         let item_len = item_text.len();
         let query_regex = &self.query_regex;
@@ -103,7 +103,7 @@ impl MatchEngine for ExactEngine {
         let (begin, end) = matched_result?;
         let score = (end - begin) as i32;
         Some(MatchResult {
-            rank: self.rank_builder.build_rank(score, begin, end, item_len),
+            rank: self.rank_builder.build_rank(score, begin, end, item_len, item_idx),
             matched_range: MatchRange::ByteRange(begin, end),
         })
     }

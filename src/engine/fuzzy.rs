@@ -123,7 +123,7 @@ impl FuzzyEngine {
 }
 
 impl MatchEngine for FuzzyEngine {
-    fn match_item(&self, item: &dyn SkimItem) -> Option<MatchResult> {
+    fn match_item(&self, item: &dyn SkimItem, item_idx: usize) -> Option<MatchResult> {
         // iterate over all matching fields:
         let item_text = item.text();
         let item_len = item_text.len();
@@ -156,7 +156,9 @@ impl MatchEngine for FuzzyEngine {
             let end = *matched_range.last().unwrap_or(&0);
 
             MatchResult {
-                rank: self.rank_builder.build_rank(score as i32, begin, end, item_len),
+                rank: self
+                    .rank_builder
+                    .build_rank(score as i32, begin, end, item_len, item_idx),
                 matched_range: MatchRange::Chars(matched_range.into()),
             }
         })

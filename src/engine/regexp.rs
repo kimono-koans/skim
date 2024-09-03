@@ -46,7 +46,7 @@ impl RegexEngine {
 }
 
 impl MatchEngine for RegexEngine {
-    fn match_item(&self, item: &dyn SkimItem) -> Option<MatchResult> {
+    fn match_item(&self, item: &dyn SkimItem, item_idx: usize) -> Option<MatchResult> {
         let item_text = item.text();
         let default_range = [(0, item_text.len())];
         let matched_result = item
@@ -68,7 +68,7 @@ impl MatchEngine for RegexEngine {
         let item_len = item_text.len();
 
         Some(MatchResult {
-            rank: self.rank_builder.build_rank(score, begin, end, item_len),
+            rank: self.rank_builder.build_rank(score, begin, end, item_len, item_idx),
             matched_range: MatchRange::ByteRange(begin, end),
         })
     }
