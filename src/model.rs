@@ -37,7 +37,7 @@ use std::cmp::max;
 #[cfg(target_env = "gnu")]
 use crate::malloc_trim;
 
-const REFRESH_DURATION: Duration = std::time::Duration::from_millis(20);
+const REFRESH_DURATION: Duration = std::time::Duration::from_millis(10);
 const SPINNER_DURATION: u32 = 200;
 // const SPINNERS: [char; 8] = ['-', '\\', '|', '/', '-', '\\', '|', '/'];
 const SPINNERS_INLINE: [char; 2] = ['-', '<'];
@@ -344,8 +344,9 @@ impl Model {
             .map(|ctrl| ctrl.stopped())
             .unwrap_or(false);
 
+        let reader_stopped = self.reader_control.as_ref().map(|ctrl| ctrl.is_done()).unwrap_or(true);
+
         if matcher_stopped {
-            let reader_stopped = self.reader_control.as_ref().map(|ctrl| ctrl.is_done()).unwrap_or(true);
             let mut ctrl = self.matcher_control.take().unwrap();
             let matched = ctrl.into_items();
 
@@ -367,21 +368,29 @@ impl Model {
         }
 
         let items_consumed = self.item_pool.num_not_taken() == 0;
-        let reader_stopped = self.reader_control.as_ref().map(|c| c.is_done()).unwrap_or(true);
         let processed = reader_stopped && items_consumed;
 
-        // run matcher if matcher had been stopped and reader had new items.
-        if !processed && self.matcher_control.is_none() {
-            self.restart_matcher();
+        if processed {
+            if let Some(ctrl) = self.reader_control.as_mut() {
+                ctrl.kill()
+            }
+            return;
         }
 
-        // send next heart beat if matcher is still running or there are items not been processed.
-        if self.matcher_control.is_some() || !processed {
-            let tx = self.tx.clone();
-            rayon::spawn(move || {
-                sleep(REFRESH_DURATION);
-                let _ = tx.send((Key::Null, Event::EvHeartBeat));
-            });
+        // run matcher if matcher had been stopped and reader had new items.
+        // if !processed {}
+        match self.matcher_control.as_ref() {
+            Some(_ctrl) => {
+                // send next heart beat if matcher is still running or there are items not been processed.
+                let tx = self.tx.clone();
+                rayon::spawn(move || {
+                    sleep(REFRESH_DURATION);
+                    let _ = tx.send((Key::Null, Event::EvHeartBeat));
+                });
+            }
+            None => {
+                self.restart_matcher();
+            }
         }
     }
 
