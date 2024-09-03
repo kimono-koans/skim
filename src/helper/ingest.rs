@@ -32,6 +32,8 @@ pub fn ingest_loop(
     tx_item: Sender<Arc<dyn SkimItem>>,
     opts: SendRawOrBuild,
 ) {
+    let line_ending_is_not_newline = line_ending != b'\n';
+
     let mut bytes_buffer = Vec::with_capacity(65_536);
 
     loop {
@@ -63,7 +65,7 @@ pub fn ingest_loop(
             .expect("Could not convert bytes to valid UTF8.")
             .lines()
             .try_for_each(|line| {
-                if line_ending != b'\n' {
+                if line_ending_is_not_newline {
                     return line
                         .split(line_ending as char)
                         .try_for_each(|line| send(line, &opts, &tx_item));
