@@ -370,26 +370,21 @@ impl Model {
         let items_consumed = self.item_pool.num_not_taken() == 0;
         let processed = reader_stopped && items_consumed;
 
-        if processed {
-            if let Some(ctrl) = self.reader_control.as_mut() {
-                ctrl.kill()
-            }
-            return;
-        }
-
-        // run matcher if matcher had been stopped and reader had new items.
-        // if !processed {}
-        match self.matcher_control.as_ref() {
-            Some(_ctrl) => {
-                // send next heart beat if matcher is still running or there are items not been processed.
-                let tx = self.tx.clone();
-                rayon::spawn(move || {
-                    sleep(REFRESH_DURATION);
-                    let _ = tx.send((Key::Null, Event::EvHeartBeat));
-                });
-            }
-            None => {
-                self.restart_matcher();
+        if !processed {
+            // run matcher if matcher had been stopped and reader had new items.
+            // if !processed {}
+            match self.matcher_control.as_ref() {
+                Some(_ctrl) => {
+                    // send next heart beat if matcher is still running or there are items not been processed.
+                    let tx = self.tx.clone();
+                    rayon::spawn(move || {
+                        sleep(REFRESH_DURATION);
+                        let _ = tx.send((Key::Null, Event::EvHeartBeat));
+                    });
+                }
+                None => {
+                    self.restart_matcher();
+                }
             }
         }
     }
