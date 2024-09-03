@@ -78,13 +78,13 @@ impl ReaderControl {
         });
     }
 
-    pub fn take(&mut self) -> Vec<Arc<dyn SkimItem>> {
-        if let Ok(mut locked) = self.items.write() {
+    pub fn take(&mut self) -> Option<Vec<Arc<dyn SkimItem>>> {
+        if let Ok(mut locked) = self.items.try_write() {
             let locked_len = locked.len();
-            return std::mem::replace(&mut locked, Vec::with_capacity(locked_len));
+            return Some(std::mem::replace(&mut locked, Vec::with_capacity(locked_len)));
         }
 
-        Vec::new()
+        None
     }
 
     pub fn all_stopped(&self) -> bool {
@@ -172,9 +172,13 @@ fn collect_item(
 
         if let Some(items_strong) = Weak::upgrade(&items_weak) {
             loop {
+                let rx_item_is_not_empty = !rx_item.is_empty();
+
                 match sel.ready() {
-                    i if i == item_channel && !rx_item.is_empty() => {
-                        let Ok(mut locked) = items_strong.write() else { continue };
+                    i if i == item_channel && rx_item_is_not_empty => {
+                        let Ok(mut locked) = items_strong.try_write() else {
+                            continue;
+                        };
 
                         locked.extend(rx_item.try_iter());
                         drop(locked);
@@ -196,7 +200,7 @@ fn collect_item(
                             continue;
                         }
                     },
-                    i if i == interrupt_channel && !rx_item.is_empty() => continue,
+                    i if i == interrupt_channel && rx_item_is_not_empty => continue,
                     i if i == interrupt_channel => break,
                     _ => unreachable!(),
                 }

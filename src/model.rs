@@ -776,14 +776,15 @@ impl Model {
             let processed = all_stopped && is_empty;
             if !processed {
                 // take out new items and put them into items
-                if let Some(c) = self.reader_control.as_mut() {
-                    self.item_pool.append(c.take());
+                if let Some(v) = ctrl.take() {
+                    self.item_pool.append(v);
                 }
             }
 
             if !all_stopped {
                 if self.exit0 || self.select1 || self.sync {
                     let tx = self.tx.clone();
+
                     rayon::spawn(move || {
                         sleep(READ_TIMEOUT);
                         let _ = tx.send((Key::Null, Event::EvHeartBeat));
@@ -796,7 +797,7 @@ impl Model {
         // send heart beat (so that heartbeat/refresh is triggered)
         let _ = self.tx.send((Key::Null, Event::EvHeartBeat));
 
-        // kill existing matcher if exists, and reuse old matched items
+        // kill existing matcher if exists, but reuse old matched items vec
         let opt_matcher_items = self.matcher_control.take().map(|mut old_matcher| {
             old_matcher.kill();
             let mut old_items = old_matcher.take();
