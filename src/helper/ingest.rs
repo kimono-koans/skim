@@ -52,7 +52,7 @@ pub fn ingest_loop(
         // now, keep reading to make sure we haven't stopped in the middle of a word.
         // no need to add the bytes to the total buf_len, as these bytes are auto-"consumed()",
         // and bytes_buffer will be extended from slice to accommodate the new bytes
-        let _ = source.read_until(line_ending, &mut bytes_buffer);
+        let _ = source.read_until(b'\n', &mut bytes_buffer);
 
         // break when there is nothing left to read
         if bytes_buffer.is_empty() {
@@ -62,7 +62,15 @@ pub fn ingest_loop(
         if let Err(_err) = std::str::from_utf8_mut(&mut bytes_buffer)
             .expect("Could not convert bytes to valid UTF8.")
             .lines()
-            .try_for_each(|line| send(line, &opts, &tx_item))
+            .try_for_each(|line| {
+                if line_ending != b'\n' {
+                    return line
+                        .split(line_ending as char)
+                        .try_for_each(|line| send(line, &opts, &tx_item));
+                }
+
+                send(line, &opts, &tx_item)
+            })
         {
             break;
         }
