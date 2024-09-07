@@ -20,7 +20,7 @@ use crate::malloc_trim;
 
 const ITEMS_INITIAL_CAPACITY: usize = 65536;
 const SLEEP_FAST: Duration = Duration::from_millis(1);
-const SLEEP_SLOW: Duration = Duration::from_millis(4);
+const SLEEP_SLOW: Duration = Duration::from_millis(20);
 
 pub trait CommandCollector {
     /// execute the `cmd` and produce a
@@ -78,13 +78,13 @@ impl ReaderControl {
         });
     }
 
-    pub fn take(&mut self) -> Option<Vec<Arc<dyn SkimItem>>> {
+    pub fn take(&mut self) -> Vec<Arc<dyn SkimItem>> {
         if let Ok(mut locked) = self.items.try_write() {
             let locked_len = locked.len();
-            return Some(std::mem::replace(&mut locked, Vec::with_capacity(locked_len)));
+            return std::mem::replace(&mut locked, Vec::with_capacity(locked_len));
         }
 
-        None
+        Vec::new()
     }
 
     pub fn all_stopped(&self) -> bool {

@@ -779,9 +779,7 @@ impl Model {
             let processed = all_stopped && is_empty;
             if !processed {
                 // take out new items and put them into items
-                if let Some(v) = ctrl.take() {
-                    self.item_pool.append(v);
-                }
+                self.item_pool.append(ctrl.take());
             }
 
             if !all_stopped {
