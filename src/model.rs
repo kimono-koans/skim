@@ -37,7 +37,8 @@ use std::cmp::max;
 #[cfg(target_env = "gnu")]
 use crate::malloc_trim;
 
-const REFRESH_DURATION: Duration = std::time::Duration::from_millis(4);
+const REFRESH_TIMEOUT: Duration = std::time::Duration::from_millis(1);
+const MATCHER_TIMEOUT: Duration = std::time::Duration::from_millis(10);
 const SPINNER_DURATION: u32 = 200;
 // const SPINNERS: [char; 8] = ['-', '\\', '|', '/', '-', '\\', '|', '/'];
 const SPINNERS_INLINE: [char; 2] = ['-', '<'];
@@ -378,7 +379,7 @@ impl Model {
                     // send next heart beat if matcher is still running or there are items not been processed.
                     let tx = self.tx.clone();
                     rayon::spawn(move || {
-                        sleep(REFRESH_DURATION);
+                        sleep(REFRESH_TIMEOUT);
                         let _ = tx.send((Key::Null, Event::EvHeartBeat));
                     });
                 }
@@ -787,7 +788,7 @@ impl Model {
                     let tx = self.tx.clone();
 
                     rayon::spawn(move || {
-                        sleep(REFRESH_DURATION);
+                        sleep(MATCHER_TIMEOUT);
                         let _ = tx.send((Key::Null, Event::EvHeartBeat));
                     });
                     return;
