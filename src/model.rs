@@ -37,7 +37,7 @@ use std::cmp::max;
 #[cfg(target_env = "gnu")]
 use crate::malloc_trim;
 
-const REFRESH_DURATION: Duration = std::time::Duration::from_millis(10);
+const REFRESH_DURATION: Duration = std::time::Duration::from_millis(4);
 const SPINNER_DURATION: u32 = 200;
 // const SPINNERS: [char; 8] = ['-', '\\', '|', '/', '-', '\\', '|', '/'];
 const SPINNERS_INLINE: [char; 2] = ['-', '<'];
