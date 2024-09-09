@@ -80,8 +80,8 @@ impl ReaderControl {
 
     pub fn take(&mut self) -> Vec<Arc<dyn SkimItem>> {
         if let Ok(mut locked) = self.items.try_write() {
-            let locked_len = locked.len();
-            return std::mem::replace(&mut locked, Vec::with_capacity(locked_len));
+            let locked_capacity = locked.capacity();
+            return std::mem::replace(&mut locked, Vec::with_capacity(locked_capacity));
         }
 
         Vec::new()
