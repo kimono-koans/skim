@@ -49,8 +49,8 @@ impl RankBuilder {
 
         for (index, criteria) in self.criterion.iter().take(4).enumerate() {
             let value = match criteria {
-                RankCriteria::Index => -item_idx,
-                RankCriteria::NegIndex => item_idx,
+                RankCriteria::Index => item_idx,
+                RankCriteria::NegIndex => -item_idx,
                 RankCriteria::Score => -score,
                 RankCriteria::Begin => begin,
                 RankCriteria::End => end,
