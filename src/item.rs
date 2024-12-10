@@ -47,7 +47,7 @@ impl RankBuilder {
         let length = length as i32;
         let item_idx = item_idx as i32;
 
-        for (index, criteria) in self.criterion.iter().take(4).enumerate() {
+        self.criterion.iter().take(4).enumerate().for_each(|(index, criteria)| {
             let value = match criteria {
                 RankCriteria::Index => item_idx,
                 RankCriteria::NegIndex => -item_idx,
@@ -62,7 +62,7 @@ impl RankBuilder {
             };
 
             rank[index] = value;
-        }
+        });
 
         rank
     }
